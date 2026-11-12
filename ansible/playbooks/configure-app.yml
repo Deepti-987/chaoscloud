@@ -1,0 +1,30 @@
+---
+- name: Configure CHAOSCLOUD application server
+  hosts: app
+  become: true
+
+  tasks:
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - git
+          - python3
+          - docker.io
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Check K3s service
+      ansible.builtin.command: systemctl is-active k3s
+      register: k3s_status
+      changed_when: false
+
+    - name: Display K3s status
+      ansible.builtin.debug:
+        msg: "K3s is {{ k3s_status.stdout }}"
