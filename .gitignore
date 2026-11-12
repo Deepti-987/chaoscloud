@@ -36,3 +36,10 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local SSH keys and Terraform plans
+*.pub
+*.tfplan
+.terraform/
+terraform.tfstate*
+
