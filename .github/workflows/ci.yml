@@ -33,10 +33,15 @@ jobs:
         working-directory: application
         run: pytest -q
 
-      - name: Build Docker image
+      - name: Build and publish Docker image
         if: github.event_name == 'push'
-        run: |
-          docker build -t chaoscloud:latest application
+        uses: docker/build-push-action@v6
+        with:
+          context: ./application
+          push: true
+          tags: |
+            ghcr.io/deepti-987/chaoscloud:latest
+            ghcr.io/deepti-987/chaoscloud:${{ github.sha }}
 
       - name: Log in to GHCR
         if: github.event_name == 'push'
@@ -46,12 +51,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish Docker image to GHCR
+      - name: Configure SSH
         if: github.event_name == 'push'
-        uses: docker/build-push-action@v6
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          context: ./application
-          push: true
-          tags: |
-            ghcr.io/deepti-987/chaoscloud:latest
-            ghcr.io/deepti-987/chaoscloud:${{ github.sha }}
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+
+      - name: Add EC2 to known hosts
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to application EC2
+        if: github.event_name == 'push'
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          ssh "$EC2_USER@$EC2_HOST" "
+            sudo k3s kubectl set image deployment/chaoscloud \
+              chaoscloud=ghcr.io/deepti-987/chaoscloud:$IMAGE_TAG \
+              -n chaoscloud &&
+            sudo k3s kubectl rollout status deployment/chaoscloud \
+              -n chaoscloud --timeout=180s
+          "
