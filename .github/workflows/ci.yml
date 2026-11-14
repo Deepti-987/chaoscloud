@@ -51,26 +51,30 @@ jobs:
             ghcr.io/deepti-987/chaoscloud:latest
             ghcr.io/deepti-987/chaoscloud:${{ github.sha }}
 
+  deploy:
+    name: Deploy to Application EC2
+    needs: test-and-publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, chaoscloud-deploy]
+
+    steps:
       - name: Configure SSH
-        if: github.event_name == 'push'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
 
-      - name: Add EC2 to known hosts
-        if: github.event_name == 'push'
+      - name: Add application EC2 to known hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          ssh-keyscan -H 10.0.1.208 >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
-      - name: Deploy to application EC2
-        if: github.event_name == 'push'
+      - name: Deploy application to K3s
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          ssh "$EC2_USER@$EC2_HOST" "
+          ssh -o BatchMode=yes ubuntu@10.0.1.208 "
             sudo k3s kubectl set image deployment/chaoscloud \
               chaoscloud=ghcr.io/deepti-987/chaoscloud:$IMAGE_TAG \
               -n chaoscloud &&
