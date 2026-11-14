@@ -43,3 +43,7 @@ Thumbs.db
 .terraform/
 terraform.tfstate*
 
+
+# Alertmanager secrets
+monitoring/alertmanager/smtp_password
+
